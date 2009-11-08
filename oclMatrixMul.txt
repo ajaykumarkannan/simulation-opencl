@@ -1,0 +1,10 @@
+bin/darwin/release/oclMatrixMul Starting...
+
+Device 0:
+ Device GeForce 9400M
+Error: Failed to load the header (null)!
+TEST FAILED !!!
+
+
+Press <Enter> to Quit...
+-----------------------------------------------------------
