@@ -8,6 +8,7 @@
 
 // standard utilities and system includes
 #include <oclUtils.h>
+#include <math.h>
 
 // project include
 #include "agents.h"
@@ -42,6 +43,36 @@ double executionTime(cl_event &event)
     
     return (double)1.0e-9 * (end - start); // convert nanoseconds to seconds on return
 }
+
+
+void f_agents_init_circle(agent_container_t * container)
+{
+   // angle differences in rad
+   float phi = (2*M_PI)/(container->f_count);  
+
+    
+   for(unsigned int i = 0; i < container->f_count; i++)
+   {
+        float * pos_x = &(container->f_agent_array[i].pos_x);
+        float * pos_y = &(container->f_agent_array[i].pos_y);
+
+        float * mov_x = &(container->f_agent_array[i].mov_x);
+        float * mov_y = &(container->f_agent_array[i].mov_y);
+    
+        // calc positions
+        *pos_x = (-1)*CIRCLE_RADIUS*sin(phi*i);
+        *pos_y = CIRCLE_RADIUS*cos(phi*i);
+        
+        // calc moving directions
+        *mov_x = (-1)*(*pos_y);
+        *mov_y = (*pos_x);
+        
+        // output        
+        shrLog(LOGBOTH, 0, "Element %d: pos x%f y%f; direction x%f y%f\n", i, *pos_x, *pos_y, *mov_x, *mov_y);
+   }
+    
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Program main
@@ -264,6 +295,27 @@ int runTest(int argc, const char** argv)
             #endif
         }
     }
+    
+    // allocate the memory for the fixed agents
+    // the array keeping all the fixed agents
+    agent_vector_t * f_agent_array = (agent_vector_t *)malloc(AGENTS_FIXED_COUNT*sizeof(agent_vector_t));
+    shrLog(LOGBOTH, 0, " alloced %d bytes host memory for %d fixed agents\n", AGENTS_FIXED_COUNT*sizeof(agent_vector_t), AGENTS_FIXED_COUNT);
+
+    // array keping all the moving agents
+    agent_vector_t * m_agent_array = (agent_vector_t *)malloc(AGENTS_MOVING_COUNT*sizeof(agent_vector_t));
+    shrLog(LOGBOTH, 0, " alloced %d bytes host memory for %d moving agents\n", AGENTS_MOVING_COUNT*sizeof(agent_vector_t), AGENTS_MOVING_COUNT);
+
+    // container init
+    agent_container_t * agent_container = (agent_container_t *)malloc(sizeof(agent_container_t));
+    shrLog(LOGBOTH, 0, " alloced %d bytes host memory for the container\n", sizeof(agent_container_t));
+    
+    agent_container->f_count = AGENTS_FIXED_COUNT;
+    agent_container->m_count = AGENTS_MOVING_COUNT;
+    agent_container->f_agent_array = f_agent_array;
+    agent_container->m_agent_array = m_agent_array;
+    
+    // init in circe
+    f_agents_init_circle(agent_container);
 
     // allocate host memory for matrices A and B
     unsigned int size_A = WA * HA;
@@ -272,6 +324,8 @@ int runTest(int argc, const char** argv)
     unsigned int size_B = WB * HB;
     unsigned int mem_size_B = sizeof(float) * size_B;
     float* h_B_data = (float*) malloc(mem_size_B);
+
+
 
     // initialize host memory
     srand(2006);
