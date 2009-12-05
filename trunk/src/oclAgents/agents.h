@@ -23,13 +23,31 @@
 #define DIM_X 100
 #define DIM_Y 100
 
+// How many Agents?
+#define AGENTS_FIXED_COUNT 12
+#define AGENTS_MOVING_COUNT 100
+
+// how many entries per Agent
+#define AGENT_ELEMENT_COUNT 4 /* pos_x, pos_y, mov_x, mov_y*/
+
+// radius of the initial circle
+#define CIRCLE_RADIUS 1
+
 // typedefs
 typedef struct agent_vector {
-    unsigned int pos_x;
-    unsigned int pos_y;
+    float pos_x;
+    float pos_y;
     float mov_x;
     float mov_y;
 } agent_vector_t;
+
+/* not sure if this a good iea to keep both in the same container */
+typedef struct agent_container {
+    unsigned int f_count;
+    unsigned int m_count;
+    agent_vector_t * f_agent_array;
+    agent_vector_t * m_agent_array;
+} agent_container_t; 
 
 
 // Matrix dimensions
