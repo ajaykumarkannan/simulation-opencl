@@ -24,11 +24,12 @@
 #define DIM_Y 100
 
 // How many Agents?
-#define AGENTS_FIXED_COUNT 12
+#define AGENTS_FIXED_COUNT 12       /* i think it should be a multiple of the available GPUs*/
 #define AGENTS_MOVING_COUNT 100
 
 // how many entries per Agent
-#define AGENT_ELEMENT_COUNT 4 /* pos_x, pos_y, mov_x, mov_y*/
+//#define AGENT_ELEMENT_COUNT 4 /* pos_x, pos_y, mov_x, mov_y - should be done by sizeof()/sizeof(float or so)*/
+#define AGENT_ELEMENT_COUNT ((sizeof(agent_vector_t)/sizeof(float))) /* like this? */
 
 // radius of the initial circle
 #define CIRCLE_RADIUS 1

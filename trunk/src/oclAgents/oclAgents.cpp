@@ -93,11 +93,11 @@ int main(int argc, const char** argv)
     shrEXIT(argc, argv);
 }
 
-void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned int mem_size_B, float* h_C )
+void AgentsGPU(cl_uint ciDeviceCount, cl_mem buffer_fixed, cl_mem buffer_moving, unsigned int f_count, unsigned int m_count)
 {
-    cl_mem d_A[MAX_GPU_COUNT];
-    cl_mem d_C[MAX_GPU_COUNT];
-    cl_mem d_B[MAX_GPU_COUNT];
+
+    cl_mem GPUmem_fixed[MAX_GPU_COUNT];
+    cl_mem GPUmem_moving[MAX_GPU_COUNT];
 
     cl_event GPUDone[MAX_GPU_COUNT];
     cl_event GPUExecution[MAX_GPU_COUNT];
@@ -106,7 +106,9 @@ void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned i
     
     // Create buffers for each GPU
     // Each GPU will compute sizePerGPU rows of the result
-    int sizePerGPU = HA / ciDeviceCount;
+    int sizePerGPU = m_count / ciDeviceCount;
+
+    shrLog(LOGBOTH, 0, "every GPU does %d moving agents\n", sizePerGPU);    
 
     int workOffset[MAX_GPU_COUNT];
     int workSize[MAX_GPU_COUNT];
@@ -115,28 +117,21 @@ void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned i
     for(unsigned int i=0; i < ciDeviceCount; ++i) 
     {
         // Input buffer
-        workSize[i] = (i != (ciDeviceCount - 1)) ? sizePerGPU : (HA - workOffset[i]);        
+        workSize[i] = (i != (ciDeviceCount - 1)) ? sizePerGPU : (m_count - workOffset[i]);        /* last unit might not have to do full size */
+        shrLog(LOGBOTH, 0, "GPU %d does %d moving agents\n", i, workSize[i]);  
 
-        d_A[i] = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY, workSize[i] * sizeof(float) * WA, NULL,NULL);
+        GPUmem_fixed[i] = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY, f_count * sizeof(agent_vector_t), NULL,NULL);
+        GPUmem_moving[i] = clCreateBuffer(cxGPUContext, CL_MEM_READ_WRITE, workSize[i] * sizeof(agent_vector_t), NULL,NULL);
 
-        // Copy only assigned rows from host to device
-        clEnqueueCopyBuffer(commandQueue[i], h_A, d_A[i], workOffset[i] * sizeof(float) * WA, 
-                            0, workSize[i] * sizeof(float) * WA, 0, NULL, NULL);        
-        
-        // create OpenCL buffer on device that will be initiatlize from the host memory on first use
-        // on device
-        d_B[i] = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                                mem_size_B, h_B_data, NULL);
-
-        // Output buffer
-        d_C[i] = clCreateBuffer(cxGPUContext, CL_MEM_WRITE_ONLY,  workSize[i] * WC * sizeof(float), NULL,NULL);
+        // Copy fixed agents and only assigned moving agents from host to device
+        clEnqueueCopyBuffer(commandQueue[i], buffer_fixed, GPUmem_fixed[i], 0, 0, f_count * sizeof(agent_vector_t), 0, NULL, NULL);       
+        clEnqueueCopyBuffer(commandQueue[i], buffer_moving, GPUmem_moving[i], workOffset[i] * sizeof(agent_vector_t), 0, workSize[i] * sizeof(agent_vector_t), 0, NULL, NULL);       
               
         // set the args values
-        clSetKernelArg(multiplicationKernel[i], 0, sizeof(cl_mem), (void *) &d_C[i]);
-        clSetKernelArg(multiplicationKernel[i], 1, sizeof(cl_mem), (void *) &d_A[i]);
-        clSetKernelArg(multiplicationKernel[i], 2, sizeof(cl_mem), (void *) &d_B[i]);
-        clSetKernelArg(multiplicationKernel[i], 3, sizeof(float) * BLOCK_SIZE *BLOCK_SIZE, 0 );
-        clSetKernelArg(multiplicationKernel[i], 4, sizeof(float) * BLOCK_SIZE *BLOCK_SIZE, 0 );
+        clSetKernelArg(multiplicationKernel[i], 0, sizeof(cl_mem), (void *) &GPUmem_fixed[i]);
+        clSetKernelArg(multiplicationKernel[i], 1, sizeof(cl_mem), (void *) &GPUmem_moving[i]);
+        clSetKernelArg(multiplicationKernel[i], 3, sizeof(agent_vector_t) * f_count, 0 );       /* ??? */
+        clSetKernelArg(multiplicationKernel[i], 4, sizeof(agent_vector_t) * workSize[i], 0 );
 
         if(i+1 < ciDeviceCount)
             workOffset[i + 1] = workOffset[i] + workSize[i];
@@ -192,6 +187,7 @@ void matrixMulGPU(cl_uint ciDeviceCount, cl_mem h_A, float* h_B_data, unsigned i
 	    clReleaseEvent(GPUDone[i]);
     }
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //! Run a simple test for 
@@ -314,37 +310,25 @@ int runTest(int argc, const char** argv)
     agent_container->f_agent_array = f_agent_array;
     agent_container->m_agent_array = m_agent_array;
     
-    // init in circe
-    f_agents_init_circle(agent_container);
-
-    // allocate host memory for matrices A and B
-    unsigned int size_A = WA * HA;
-    unsigned int mem_size_A = sizeof(float) * size_A;
-    float* h_A_data = (float*) malloc(mem_size_A);
-    unsigned int size_B = WB * HB;
-    unsigned int mem_size_B = sizeof(float) * size_B;
-    float* h_B_data = (float*) malloc(mem_size_B);
-
-
-
-    // initialize host memory
-    srand(2006);
-    shrFillArray(h_A_data, size_A);
-    shrFillArray(h_B_data, size_B);
-
-    // allocate host memory for result
-    unsigned int size_C = WC * HC;
-    unsigned int mem_size_C = sizeof(float) * size_C;
-    float* h_C = (float*) malloc(mem_size_C);
-
-    // create OpenCL buffer pointing to the host memory
-    cl_mem h_A = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR,
-				    mem_size_A, h_A_data, &ciErrNum);
+    // create OpenCL buffers pointing to the host memory
+    cl_mem buffer_fixed = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR,
+				    AGENTS_FIXED_COUNT*sizeof(agent_vector_t), f_agent_array, &ciErrNum);
     if (ciErrNum != CL_SUCCESS)
     {
-        shrLog(LOGBOTH, 0, "Error: clCreateBuffer\n");
+        shrLog(LOGBOTH, 0, "Error: clCreateBuffer for fixed agents\n");
         return ciErrNum;
     }
+    cl_mem buffer_moving = clCreateBuffer(cxGPUContext, CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR,
+				    AGENTS_MOVING_COUNT*sizeof(agent_vector_t), m_agent_array, &ciErrNum);
+    if (ciErrNum != CL_SUCCESS)
+    {
+        shrLog(LOGBOTH, 0, "Error: clCreateBuffer for moving agents\n");
+        return ciErrNum;
+    }
+    
+    
+    // init in circe
+    f_agents_init_circle(agent_container);
 
     // Program Setup
     size_t program_length;
@@ -381,19 +365,20 @@ int runTest(int argc, const char** argv)
         // write out standard error, Build Log and PTX, then return error
         shrLog(LOGBOTH | ERRORMSG, ciErrNum, STDERROR);
         oclLogBuildInfo(cpProgram, oclGetFirstDev(cxGPUContext));
-        oclLogPtx(cpProgram, oclGetFirstDev(cxGPUContext), "oclMatrixMul.ptx");
+        oclLogPtx(cpProgram, oclGetFirstDev(cxGPUContext), "oclAgents.ptx");
         return ciErrNum;
     }
 
     // write out PTX if requested on the command line
     if(shrCheckCmdLineFlag(argc, argv, "dump-ptx") )
     {
-        oclLogPtx(cpProgram, oclGetFirstDev(cxGPUContext), "oclMatrixMul.ptx");
+        oclLogPtx(cpProgram, oclGetFirstDev(cxGPUContext), "oclAgents.ptx");
     }
 
     // Create Kernel
     for(unsigned int i=0; i<ciDeviceCount; ++i) {
-        multiplicationKernel[i] = clCreateKernel(cpProgram, "matrixMul", &ciErrNum);
+        shrLog(LOGBOTH, 0, "Creating Kernel for Device %d of total %d devices.\n", i, ciDeviceCount);
+        multiplicationKernel[i] = clCreateKernel(cpProgram, "agents", &ciErrNum);
         if (ciErrNum != CL_SUCCESS)
         {
             shrLog(LOGBOTH, 0, "Error: Failed to create kernel\n");
@@ -405,7 +390,7 @@ int runTest(int argc, const char** argv)
     shrLog(LOGBOTH, 0, "\nRunning Computations on 1 - %d GPU's...\n", ciDeviceCount);
     for(unsigned int k = 1; k <= ciDeviceCount; ++k) 
     {
-        matrixMulGPU(k, h_A, h_B_data, mem_size_B, h_C);
+        AgentsGPU(k, buffer_fixed, buffer_moving, agent_container->f_count, agent_container->m_count);
     }
 
     // clean up OCL resources
@@ -421,9 +406,9 @@ int runTest(int argc, const char** argv)
         shrLog(LOGBOTH, 0, "Error: Failed to release context: %d\n", ciErrNum);
 
     // clean up memory
-    free(h_A_data);
-    free(h_B_data);
-    free(h_C);
+    free(f_agent_array);
+    free(m_agent_array);
+    free(agent_container);
     
     return 0;
 }
