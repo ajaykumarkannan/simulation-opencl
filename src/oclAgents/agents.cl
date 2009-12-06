@@ -14,7 +14,7 @@
 //! WA is A's width and WB is B's width
 ////////////////////////////////////////////////////////////////////////////////
 __kernel void
-matrixMul( __global float* C, __global float* A, __global float* B, 
+agents( __global float* C, __global float* A, __global float* B, 
 	   __local float* As, __local float* Bs)
 {
     // Block index
