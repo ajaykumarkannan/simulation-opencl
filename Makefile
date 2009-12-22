@@ -1,7 +1,7 @@
 # OpenCL SDK Version 1.00.0419.1830
 
-PROJECTS := $(shell find samples_nvidia -name Makefile)
-# PROJECTS := $(shell find src -name Makefile)
+# PROJECTS := $(shell find samples_nvidia -name Makefile)
+PROJECTS := $(shell find src -name Makefile)
 
 ifeq ($(dbg),1)
 	BINDIR := bin/linux/debug/

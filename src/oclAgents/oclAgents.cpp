@@ -73,6 +73,35 @@ void f_agents_init_circle(agent_container_t * container)
     
 }
 
+void m_agents_init_null(agent_container_t * container)
+{
+    
+    for(unsigned int i = 0; i < container->m_count; i++)
+    {
+        container->m_agent_array[i].pos_x = 66.00; 
+        container->m_agent_array[i].pos_y = -66.00;
+        container->m_agent_array[i].mov_x = 88.00;
+        container->m_agent_array[i].mov_y = -88.00;
+    }
+}
+
+	
+void print_moving_agents(agent_vector_t * m_agents, unsigned int count, const char * prefix)
+{
+    unsigned int i;
+    
+    if(prefix)
+    { shrLog(LOGBOTH, 0, "%s\n",prefix); } 
+    
+    for(i=0; i < count; i++)
+    {
+        agent_vector_t * a = &m_agents[i];
+        shrLog(LOGBOTH, 0, "Agent %d pos x%f y%f; direction x%f y%f\n", i, a->pos_x, a->pos_y, a->mov_x, a->mov_y);    
+    }    
+    
+}
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Program main
@@ -93,14 +122,25 @@ int main(int argc, const char** argv)
     shrEXIT(argc, argv);
 }
 
-void AgentsGPU(cl_uint ciDeviceCount, cl_mem buffer_fixed, cl_mem buffer_moving, unsigned int f_count, unsigned int m_count)
+//void AgentsGPU(cl_uint ciDeviceCount, cl_mem buffer_fixed, cl_mem buffer_moving, unsigned int f_count, unsigned int m_count)
+void AgentsGPU(cl_uint ciDeviceCount, agent_container_t * container)
 {
+
+    unsigned int f_count = container->f_count;
+    unsigned int m_count = container->m_count;
+    
+    agent_vector_t * f_host = container->f_agent_array;
+    agent_vector_t * m_host = container->m_agent_array;
+
+    agent_vector_t result_fixed[f_count];
+    agent_vector_t result_moving[m_count];
 
     cl_mem GPUmem_fixed[MAX_GPU_COUNT];
     cl_mem GPUmem_moving[MAX_GPU_COUNT];
 
     cl_event GPUDone[MAX_GPU_COUNT];
-    cl_event GPUExecution[MAX_GPU_COUNT];
+    
+    cl_int ret = 0;
 
     // Start the computation on each available GPU
     
@@ -120,47 +160,64 @@ void AgentsGPU(cl_uint ciDeviceCount, cl_mem buffer_fixed, cl_mem buffer_moving,
         workSize[i] = (i != (ciDeviceCount - 1)) ? sizePerGPU : (m_count - workOffset[i]);        /* last unit might not have to do full size */
         shrLog(LOGBOTH, 0, "GPU %d does %d moving agents\n", i, workSize[i]);  
 
-        GPUmem_fixed[i] = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY, f_count * sizeof(agent_vector_t), NULL,NULL);
+        GPUmem_fixed[i] = clCreateBuffer(cxGPUContext, CL_MEM_READ_WRITE, f_count * sizeof(agent_vector_t), NULL,NULL);
         GPUmem_moving[i] = clCreateBuffer(cxGPUContext, CL_MEM_READ_WRITE, workSize[i] * sizeof(agent_vector_t), NULL,NULL);
 
         // Copy fixed agents and only assigned moving agents from host to device
-        clEnqueueCopyBuffer(commandQueue[i], buffer_fixed, GPUmem_fixed[i], 0, 0, f_count * sizeof(agent_vector_t), 0, NULL, NULL);       
-        clEnqueueCopyBuffer(commandQueue[i], buffer_moving, GPUmem_moving[i], workOffset[i] * sizeof(agent_vector_t), 0, workSize[i] * sizeof(agent_vector_t), 0, NULL, NULL);       
+        clEnqueueWriteBuffer(commandQueue[i], GPUmem_fixed[i], CL_TRUE, 0, f_count * sizeof(agent_vector_t), f_host, NULL, NULL, NULL);
+        clEnqueueWriteBuffer(commandQueue[i], GPUmem_moving[i], CL_TRUE, workOffset[i], m_count * sizeof(agent_vector_t), m_host, NULL, NULL, NULL);
+        
+        /* clEnqueueCopyBuffer(commandQueue[i], buffer_fixed, GPUmem_fixed[i], 0, 0, f_count * sizeof(agent_vector_t), 0, NULL, NULL);       
+        clEnqueueCopyBuffer(commandQueue[i], buffer_moving, GPUmem_moving[i], workOffset[i] * sizeof(agent_vector_t), 0, workSize[i] * sizeof(agent_vector_t), 0, NULL, NULL);       */
               
         // set the args values
-        clSetKernelArg(multiplicationKernel[i], 0, sizeof(cl_mem), (void *) &GPUmem_fixed[i]);
-        clSetKernelArg(multiplicationKernel[i], 1, sizeof(cl_mem), (void *) &GPUmem_moving[i]);
-        clSetKernelArg(multiplicationKernel[i], 3, sizeof(agent_vector_t) * f_count, 0 );       /* ??? */
-        clSetKernelArg(multiplicationKernel[i], 4, sizeof(agent_vector_t) * workSize[i], 0 );
+        clSetKernelArg(multiplicationKernel[i], 0, f_count * sizeof(agent_vector_t), (void *) GPUmem_fixed[i]);  /* address of fixed agents */
+        clSetKernelArg(multiplicationKernel[i], 1, workSize[i] * sizeof(agent_vector_t), (void *) GPUmem_moving[i]); /* address of moving agents */
+        clSetKernelArg(multiplicationKernel[i], 2, sizeof(unsigned int), (void *)&f_count );       /* count of fixed agents */
+        clSetKernelArg(multiplicationKernel[i], 3, sizeof(unsigned int), (void *)&workSize[i] );   /* count of moving agents */
 
         if(i+1 < ciDeviceCount)
             workOffset[i + 1] = workOffset[i] + workSize[i];
     }
     
     // Execute Multiplication on all GPUs in parallel
-    size_t localWorkSize[] = {BLOCK_SIZE, BLOCK_SIZE};
-    size_t globalWorkSize[] = {shrRoundUp(BLOCK_SIZE, WC), shrRoundUp(BLOCK_SIZE, workSize[0])};
+    // size_t localWorkSize[] = {BLOCK_SIZE, BLOCK_SIZE};
+    // size_t globalWorkSize[] = {shrRoundUp(BLOCK_SIZE, WC), shrRoundUp(BLOCK_SIZE, workSize[0])};
     
     // Start timer and launch kernels on devices
-    shrDeltaT(0);
+    /* shrDeltaT(0); */
     for(unsigned int i = 0; i < ciDeviceCount; i++) 
     {
         // Multiplication - non-blocking execution
-        globalWorkSize[1] = shrRoundUp(BLOCK_SIZE, workSize[i]);
+        /* globalWorkSize[1] = shrRoundUp(BLOCK_SIZE, workSize[i]); */
 
-        clEnqueueNDRangeKernel(commandQueue[i], multiplicationKernel[i], 2, 0, globalWorkSize, localWorkSize,
-                               0, NULL, &GPUExecution[i]);        
+        /* clEnqueueNDRangeKernel(commandQueue[i], multiplicationKernel[i], 1, 0, globalWorkSize, localWorkSize,
+                               0, NULL, &GPUExecution[i]); */
+                               
+      ret = clEnqueueTask(commandQueue[i], multiplicationKernel[i], 0, NULL, &GPUDone[i]);
+      (void)clFlush(commandQueue[i]);
     }
+    
+    // CPU sync with GPU
+    clWaitForEvents(ciDeviceCount, GPUDone);
+    
+    /* TODO: query for wait-event stuff*/
 
     for(unsigned int i = 0; i < ciDeviceCount; i++) 
     {    
-        // Non-blocking copy of result from device to host
-        clEnqueueReadBuffer(commandQueue[i], d_C[i], CL_FALSE, 0, WC * sizeof(float) * workSize[i], 
-                            h_C + workOffset[i] * WC, 0, NULL, &GPUDone[i]);
+        clEnqueueReadBuffer(commandQueue[i], GPUmem_fixed[i], CL_TRUE, 0, 
+                            f_count * sizeof(agent_vector_t), result_fixed, 0, NULL, NULL);
+        // blocking copy of result from device to host
+        clEnqueueReadBuffer(commandQueue[i], GPUmem_moving[i], CL_TRUE, workOffset[i] * sizeof(agent_vector_t), 
+                            workSize[i] * sizeof(agent_vector_t), &result_moving[workOffset[i]], 0, NULL, &GPUDone[i]);
+
     }
 
     // CPU sync with GPU
     clWaitForEvents(ciDeviceCount, GPUDone);
+
+    print_moving_agents(result_fixed, f_count, "FIXED AGENTS");
+    print_moving_agents(result_moving, m_count, "MOVING AGENTS");
 
     // stop and log timer 
     #ifdef GPU_PROFILING
@@ -180,10 +237,8 @@ void AgentsGPU(cl_uint ciDeviceCount, cl_mem buffer_fixed, cl_mem buffer_moving,
     // Release mem and event objects    
     for(unsigned int i = 0; i < ciDeviceCount; i++) 
     {
-        clReleaseMemObject(d_A[i]);
-        clReleaseMemObject(d_C[i]);
-        clReleaseMemObject(d_B[i]);
-	    clReleaseEvent(GPUExecution[i]);
+        clReleaseMemObject(GPUmem_fixed[i]);
+        clReleaseMemObject(GPUmem_moving[i]);
 	    clReleaseEvent(GPUDone[i]);
     }
 }
@@ -311,7 +366,7 @@ int runTest(int argc, const char** argv)
     agent_container->m_agent_array = m_agent_array;
     
     // create OpenCL buffers pointing to the host memory
-    cl_mem buffer_fixed = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR,
+    /* cl_mem buffer_fixed = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR,
 				    AGENTS_FIXED_COUNT*sizeof(agent_vector_t), f_agent_array, &ciErrNum);
     if (ciErrNum != CL_SUCCESS)
     {
@@ -324,11 +379,12 @@ int runTest(int argc, const char** argv)
     {
         shrLog(LOGBOTH, 0, "Error: clCreateBuffer for moving agents\n");
         return ciErrNum;
-    }
+    } */
     
     
     // init in circe
     f_agents_init_circle(agent_container);
+    m_agents_init_null(agent_container);
 
     // Program Setup
     size_t program_length;
@@ -381,7 +437,7 @@ int runTest(int argc, const char** argv)
         multiplicationKernel[i] = clCreateKernel(cpProgram, "agents", &ciErrNum);
         if (ciErrNum != CL_SUCCESS)
         {
-            shrLog(LOGBOTH, 0, "Error: Failed to create kernel\n");
+            shrLog(LOGBOTH, 0, "Error: Failed to create kernel err %d\n", ciErrNum);
             return ciErrNum;
         }
     }
@@ -390,11 +446,13 @@ int runTest(int argc, const char** argv)
     shrLog(LOGBOTH, 0, "\nRunning Computations on 1 - %d GPU's...\n", ciDeviceCount);
     for(unsigned int k = 1; k <= ciDeviceCount; ++k) 
     {
-        AgentsGPU(k, buffer_fixed, buffer_moving, agent_container->f_count, agent_container->m_count);
+        AgentsGPU(k, agent_container);
+        /* AgentsGPU(k, buffer_fixed, buffer_moving, agent_container->f_count, agent_container->m_count); */
     }
 
     // clean up OCL resources
-    clReleaseMemObject(h_A);
+    // clReleaseMemObject(buffer_moving);
+    // clReleaseMemObject(buffer_fixed);
     for(unsigned int k = 0; k < ciDeviceCount; ++k) 
     {
         clReleaseKernel( multiplicationKernel[k] );
