@@ -9,6 +9,7 @@
 // standard utilities and system includes
 #include <oclUtils.h>
 #include <math.h>
+#include <stdlib.h>
 
 // project include
 #include "agents.h"
@@ -73,15 +74,30 @@ void f_agents_init_circle(agent_container_t * container)
     
 }
 
+void m_agents_init_rand(agent_container_t * container)
+{
+    
+    srand( time(NULL) );
+    
+    for(unsigned int i = 0; i < container->m_count; i++)
+    {
+        container->m_agent_array[i].pos_x = (rand() % DIM_X) - DIM_X/2; 
+        container->m_agent_array[i].pos_y = (rand() % DIM_Y) - DIM_Y/2;
+        container->m_agent_array[i].mov_x = (rand() % DIM_X) - DIM_X/2;
+        container->m_agent_array[i].mov_y = (rand() % DIM_Y) - DIM_Y/2;
+    }
+}
+
+
 void m_agents_init_null(agent_container_t * container)
 {
     
     for(unsigned int i = 0; i < container->m_count; i++)
     {
-        container->m_agent_array[i].pos_x = 66.00; 
-        container->m_agent_array[i].pos_y = 88.00;
-        container->m_agent_array[i].mov_x = 10.00;
-        container->m_agent_array[i].mov_y = 13.00;
+        container->m_agent_array[i].pos_x = 00.00; 
+        container->m_agent_array[i].pos_y = 00.00;
+        container->m_agent_array[i].mov_x = 00.00;
+        container->m_agent_array[i].mov_y = 00.00;
     }
 }
 
@@ -101,6 +117,48 @@ void print_moving_agents(agent_vector_t * m_agents, unsigned int count, const ch
     
 }
 
+void print_ppm(agent_container_t * container, unsigned int run_nr)  // do on gpu later on!
+{
+    char ppm[DIM_X][DIM_Y][3];
+    char ppm_out[(DIM_X*DIM_Y*3)+1];
+    
+    char filename[FILENAME_LENGTH_MAX];
+    
+    memset(&ppm[0][0], 1, DIM_X*DIM_Y*3);
+    
+    // fill mobile agents
+    for(unsigned int i = 0; i < container->m_count; i++)
+    {
+        int x = container->m_agent_array[i].pos_x;
+        int y = container->m_agent_array[i].pos_y;
+        
+        if ((x+50) >= 0 && (x+50) < DIM_X && (y+50) >= 0 && (y+50) < DIM_Y) // check for safety
+        {    ppm[x][y][0] = COLOR_MOBILE_AGENTS_R;
+             ppm[x][y][1] = COLOR_MOBILE_AGENTS_G;
+             ppm[x][y][2] = COLOR_MOBILE_AGENTS_B; }
+        else
+        { shrLog(LOGBOTH,0, "ERROR: ppm_gen: agent out of range with x%d y%d\n", x,y); }
+        
+    }
+    
+    memcpy(ppm_out, ppm, DIM_X * DIM_Y * 3);
+    ppm_out[DIM_X*DIM_Y*3] = NULL;
+        
+    snprintf(filename, FILENAME_LENGTH_MAX, "out_%d.ppm", run_nr);
+    
+    FILE* f; // create a new file pointer
+    if((f=fopen(filename,"w"))==NULL) 
+    { shrLog(LOGBOTH,0, "ERROR: could not open file\n"); }    
+    
+    //ppm header
+    fprintf(f,"P6\n%d %d %d\n", DIM_X, DIM_Y, COLOR_MAX);
+    
+    // ppm binary info
+    fputs(ppm_out,f);
+    
+    fclose(f);
+        
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -129,6 +187,8 @@ void AgentsGPU(cl_uint ciDeviceCount, agent_container_t * container)
     unsigned int f_count = container->f_count;
     unsigned int m_count = container->m_count;
     
+    int ret_code[MAX_GPU_COUNT];
+    
     agent_vector_t * f_host = container->f_agent_array;
     agent_vector_t * m_host = container->m_agent_array;
 
@@ -139,6 +199,7 @@ void AgentsGPU(cl_uint ciDeviceCount, agent_container_t * container)
     cl_mem GPUmem_moving[MAX_GPU_COUNT];
     cl_mem GPUmem_fcount[MAX_GPU_COUNT];
     cl_mem GPUmem_mcount[MAX_GPU_COUNT];
+    cl_mem GPUmem_ret[MAX_GPU_COUNT];
 
     cl_event GPUDone[MAX_GPU_COUNT];
     
@@ -162,10 +223,14 @@ void AgentsGPU(cl_uint ciDeviceCount, agent_container_t * container)
         workSize[i] = (i != (ciDeviceCount - 1)) ? sizePerGPU : (m_count - workOffset[i]);        /* last unit might not have to do full size */
         shrLog(LOGBOTH, 0, "GPU %d does %d moving agents\n", i, workSize[i]);  
 
+        //init errcode
+        ret_code[i] = 0;
+
         GPUmem_fixed[i] = clCreateBuffer(cxGPUContext, CL_MEM_READ_WRITE, f_count * sizeof(agent_vector_t), NULL,NULL);
         GPUmem_moving[i] = clCreateBuffer(cxGPUContext, CL_MEM_READ_WRITE, workSize[i] * sizeof(agent_vector_t), NULL,NULL);
         GPUmem_fcount[i] = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR, sizeof(unsigned int), &f_count,NULL);
         GPUmem_mcount[i] = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR, sizeof(unsigned int), &workSize[i],NULL);
+        GPUmem_ret[i] = clCreateBuffer(cxGPUContext, CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR, sizeof(int), &ret_code[i],NULL);
 
         // Copy fixed agents and only assigned moving agents from host to device
         clEnqueueWriteBuffer(commandQueue[i], GPUmem_fixed[i], CL_TRUE, 0, f_count * sizeof(agent_vector_t), f_host, NULL, NULL, NULL);
@@ -180,6 +245,7 @@ void AgentsGPU(cl_uint ciDeviceCount, agent_container_t * container)
         clSetKernelArg(multiplicationKernel[i], 1, sizeof(cl_mem), (void *)&(GPUmem_moving[i])); /* address of moving agents */
         clSetKernelArg(multiplicationKernel[i], 2, sizeof(cl_mem), (void *)&GPUmem_fcount);       /* count of fixed agents */
         clSetKernelArg(multiplicationKernel[i], 3, sizeof(cl_mem), (void *)&GPUmem_mcount);   /* count of moving agents */
+        clSetKernelArg(multiplicationKernel[i], 4, sizeof(cl_mem), (void *)&GPUmem_ret[i]);   /* count of moving agents */
 
         if(i+1 < ciDeviceCount)
             workOffset[i + 1] = workOffset[i] + workSize[i];
@@ -187,33 +253,46 @@ void AgentsGPU(cl_uint ciDeviceCount, agent_container_t * container)
     
     // Start timer and launch kernels on devices
     /* shrDeltaT(0); */
-    for(unsigned int i = 0; i < ciDeviceCount; i++) 
-    {
-      ret = clEnqueueTask(commandQueue[i], multiplicationKernel[i], 0, NULL, &GPUDone[i]);
-      if (ret != CL_SUCCESS)
-      { shrLog(LOGBOTH, 0, "enqueue tsk failed with ret %d\n",ret); }
-      (void)clFlush(commandQueue[i]);
-    }
-
     
-    // CPU sync with GPU
-    clWaitForEvents(ciDeviceCount, GPUDone);
+    for(unsigned int run = 0; run < RUNS_MAX; run++)
+    {
+    
+        for(unsigned int i = 0; i < ciDeviceCount; i++) 
+        {
+            ret = clEnqueueTask(commandQueue[i], multiplicationKernel[i], 0, NULL, &GPUDone[i]);
+            if (ret != CL_SUCCESS)
+            { shrLog(LOGBOTH, 0, "enqueue tsk failed with ret %d\n",ret); }
+            (void)clFlush(commandQueue[i]);
+        }
+    
+        // CPU sync with GPU
+        clWaitForEvents(ciDeviceCount, GPUDone);
 
-    for(unsigned int i = 0; i < ciDeviceCount; i++) 
-    {    
-        clEnqueueReadBuffer(commandQueue[i], GPUmem_fixed[i], CL_TRUE, 0, 
+        for(unsigned int i = 0; i < ciDeviceCount; i++) 
+        {    
+            clEnqueueReadBuffer(commandQueue[i], GPUmem_fixed[i], CL_TRUE, 0, 
                             f_count * sizeof(agent_vector_t), result_fixed, 0, NULL, NULL);
-        // blocking copy of result from device to host
-        clEnqueueReadBuffer(commandQueue[i], GPUmem_moving[i], CL_TRUE, workOffset[i] * sizeof(agent_vector_t), 
+            // blocking copy of result from device to host
+            clEnqueueReadBuffer(commandQueue[i], GPUmem_moving[i], CL_TRUE, workOffset[i] * sizeof(agent_vector_t), 
                             workSize[i] * sizeof(agent_vector_t), &result_moving[workOffset[i]], 0, NULL, &GPUDone[i]);
+            clEnqueueReadBuffer(commandQueue[i], GPUmem_moving[i], CL_TRUE, workOffset[i] * sizeof(agent_vector_t), 
+                            workSize[i] * sizeof(agent_vector_t), &(container->m_agent_array[workOffset[i]]), 0, NULL, &GPUDone[i]);
+    
+            shrLog(LOGBOTH, 0, "ret from Device %d is %d\n", i, ret_code[i]);
+    
+            // copy back to mem that will be displayed
+            //memcpy(&container->m_agent_array[workOffset[i]], &result_moving[workOffset[i]], workSize[i] * sizeof(agent_vector_t));
+        }
+
+        // CPU sync with GPU
+        clWaitForEvents(ciDeviceCount, GPUDone);
+
+        print_ppm(container, run);
+
+        //print_moving_agents(result_fixed, f_count, "FIXED AGENTS");
+        print_moving_agents(result_moving, m_count, "MOVING AGENTS");
 
     }
-
-    // CPU sync with GPU
-    clWaitForEvents(ciDeviceCount, GPUDone);
-
-    print_moving_agents(result_fixed, f_count, "FIXED AGENTS");
-    print_moving_agents(result_moving, m_count, "MOVING AGENTS");
 
     // stop and log timer 
     #ifdef GPU_PROFILING
@@ -263,7 +342,6 @@ int runTest(int argc, const char** argv)
         // User specified GPUs
         char* deviceList;
         char* deviceStr;
-        char* next_token;
         shrGetCmdLineArgumentstr(argc, (const char**)argv, "device", &deviceList);
 
         #ifdef WIN32
@@ -382,7 +460,9 @@ int runTest(int argc, const char** argv)
     
     // init in circe
     f_agents_init_circle(agent_container);
-    m_agents_init_null(agent_container);
+    //m_agents_init_null(agent_container);
+    m_agents_init_rand(agent_container);
+    
 
     // Program Setup
     size_t program_length;

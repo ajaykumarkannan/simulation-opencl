@@ -23,9 +23,22 @@
 #define DIM_X 100
 #define DIM_Y 100
 
+// how many runs
+#define RUNS_MAX 100
+
 // How many Agents?
 #define AGENTS_FIXED_COUNT 12       /* i think it should be a multiple of the available GPUs*/
 #define AGENTS_MOVING_COUNT 100
+
+// print stuff
+#define FILENAME_LENGTH_MAX 20
+#define COLOR_MAX 255
+#define COLOR_MOBILE_AGENTS_R 255
+#define COLOR_MOBILE_AGENTS_G 255
+#define COLOR_MOBILE_AGENTS_B 255
+#define COLOR_FIXED_AGENTS_R 200
+#define COLOR_FIXED_AGENTS_G 200
+#define COLOR_FIXED_AGENTS_B 200
 
 // how many entries per Agent
 //#define AGENT_ELEMENT_COUNT 4 /* pos_x, pos_y, mov_x, mov_y - should be done by sizeof()/sizeof(float or so)*/
