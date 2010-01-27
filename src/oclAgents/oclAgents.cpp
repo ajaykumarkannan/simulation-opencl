@@ -65,8 +65,11 @@ void f_agents_init_circle(agent_container_t * container)
         *pos_y = CIRCLE_RADIUS*cos(phi*i);
         
         // calc moving directions
-        *mov_x = (-1)*(*pos_y);
-        *mov_y = (*pos_x);
+        *mov_x = (-1)*(*pos_y)*INIT_MOVE_FACTOR_FIXED;
+        *mov_y = (*pos_x)*INIT_MOVE_FACTOR_FIXED;
+        
+        //type
+        container->f_agent_array[i].stat = STAT_FREE;
         
         // output        
         shrLog(LOGBOTH, 0, "Element %d: pos x%f y%f; direction x%f y%f\n", i, *pos_x, *pos_y, *mov_x, *mov_y);
@@ -83,8 +86,9 @@ void m_agents_init_rand(agent_container_t * container)
     {
         container->m_agent_array[i].pos_x = (rand() % DIM_X) - DIM_X/2; 
         container->m_agent_array[i].pos_y = (rand() % DIM_Y) - DIM_Y/2;
-        container->m_agent_array[i].mov_x = (rand() % DIM_X) - DIM_X/2;
-        container->m_agent_array[i].mov_y = (rand() % DIM_Y) - DIM_Y/2;
+        container->m_agent_array[i].mov_x = ((rand() % DIM_X) - DIM_X/2)*INIT_MOVE_FACTOR_MOVING;
+        container->m_agent_array[i].mov_y = ((rand() % DIM_Y) - DIM_Y/2)*INIT_MOVE_FACTOR_MOVING;
+        container->m_agent_array[i].stat = STAT_FREE;
     }
 }
 
@@ -98,6 +102,7 @@ void m_agents_init_null(agent_container_t * container)
         container->m_agent_array[i].pos_y = 00.00;
         container->m_agent_array[i].mov_x = 00.00;
         container->m_agent_array[i].mov_y = 00.00;
+        container->m_agent_array[i].stat = STAT_FREE;
     }
 }
 
@@ -112,7 +117,7 @@ void print_moving_agents(agent_vector_t * m_agents, unsigned int count, const ch
     for(i=0; i < count; i++)
     {
         agent_vector_t * a = &m_agents[i];
-        shrLog(LOGBOTH, 0, "Agent %d pos x%f y%f; direction x%f y%f\n", i, a->pos_x, a->pos_y, a->mov_x, a->mov_y);    
+        shrLog(LOGBOTH, 0, "Agent %d pos x%f y%f; direction x%f y%f occupied: %d\n", i, a->pos_x, a->pos_y, a->mov_x, a->mov_y, a->stat);    
     }    
     
 }
@@ -125,6 +130,34 @@ void print_ppm(agent_container_t * container, unsigned int run_nr)  // do on gpu
     char filename[FILENAME_LENGTH_MAX];
     
     memset(&ppm[0][0], 1, DIM_X*DIM_Y*3);
+
+    // fill fixed agents
+    for(unsigned int i = 0; i < container->f_count; i++)
+    {
+        int x = container->f_agent_array[i].pos_x;
+        int y = container->f_agent_array[i].pos_y;
+        
+        if ((x+50) >= 0 && (x+50) < DIM_X && (y+50) >= 0 && (y+50) < DIM_Y) // check for safety
+        {
+
+            if(container->f_agent_array[i].stat == STAT_OCCUPIED1)
+            {
+                ppm[-(x-DIM_X/2)][y+DIM_Y/2][0] = COLOR_FIXED_AGENTS_OCC1_R;
+                ppm[-(x-DIM_X/2)][y+DIM_Y/2][1] = COLOR_FIXED_AGENTS_OCC1_G;
+                ppm[-(x-DIM_X/2)][y+DIM_Y/2][2] = COLOR_FIXED_AGENTS_OCC1_B; 
+            }
+            else
+            {
+                ppm[-(x-DIM_X/2)][y+DIM_Y/2][0] = COLOR_FIXED_AGENTS_FREE_R;
+                ppm[-(x-DIM_X/2)][y+DIM_Y/2][1] = COLOR_FIXED_AGENTS_FREE_G;
+                ppm[-(x-DIM_X/2)][y+DIM_Y/2][2] = COLOR_FIXED_AGENTS_FREE_B; 
+            }
+            
+        }
+        else
+        { shrLog(LOGBOTH,0, "ERROR: ppm_gen: agent out of range with x%d y%d\n", x,y); }
+        
+    }
     
     // fill mobile agents
     for(unsigned int i = 0; i < container->m_count; i++)
@@ -133,9 +166,21 @@ void print_ppm(agent_container_t * container, unsigned int run_nr)  // do on gpu
         int y = container->m_agent_array[i].pos_y;
         
         if ((x+50) >= 0 && (x+50) < DIM_X && (y+50) >= 0 && (y+50) < DIM_Y) // check for safety
-        {    ppm[x][y][0] = COLOR_MOBILE_AGENTS_R;
-             ppm[x][y][1] = COLOR_MOBILE_AGENTS_G;
-             ppm[x][y][2] = COLOR_MOBILE_AGENTS_B; }
+        {
+            if(container->m_agent_array[i].stat == STAT_OCCUPIED1)
+            {
+                ppm[-(x-DIM_X/2)][y+DIM_Y/2][0] = COLOR_MOVING_AGENTS_OCC1_R;
+                ppm[-(x-DIM_X/2)][y+DIM_Y/2][1] = COLOR_MOVING_AGENTS_OCC1_G;
+                ppm[-(x-DIM_X/2)][y+DIM_Y/2][2] = COLOR_MOVING_AGENTS_OCC1_B; 
+            }
+            else
+            {
+                ppm[-(x-DIM_X/2)][y+DIM_Y/2][0] = COLOR_MOVING_AGENTS_FREE_R;
+                ppm[-(x-DIM_X/2)][y+DIM_Y/2][1] = COLOR_MOVING_AGENTS_FREE_G;
+                ppm[-(x-DIM_X/2)][y+DIM_Y/2][2] = COLOR_MOVING_AGENTS_FREE_B; 
+            }
+
+        }
         else
         { shrLog(LOGBOTH,0, "ERROR: ppm_gen: agent out of range with x%d y%d\n", x,y); }
         
@@ -177,7 +222,7 @@ int main(int argc, const char** argv)
     }
 
     // finish
-    shrEXIT(argc, argv);
+    //shrEXIT(argc, argv);
 }
 
 //void AgentsGPU(cl_uint ciDeviceCount, cl_mem buffer_fixed, cl_mem buffer_moving, unsigned int f_count, unsigned int m_count)
@@ -254,6 +299,9 @@ void AgentsGPU(cl_uint ciDeviceCount, agent_container_t * container)
     // Start timer and launch kernels on devices
     /* shrDeltaT(0); */
     
+    shrLog(LOGBOTH, 0, "INIT:\n");
+    print_moving_agents(m_host, m_count, "MOVING AGENTS");
+    
     for(unsigned int run = 0; run < RUNS_MAX; run++)
     {
     
@@ -289,8 +337,9 @@ void AgentsGPU(cl_uint ciDeviceCount, agent_container_t * container)
 
         print_ppm(container, run);
 
+        shrLog(LOGBOTH, 0, "RUN %d\n", run);
         //print_moving_agents(result_fixed, f_count, "FIXED AGENTS");
-        print_moving_agents(result_moving, m_count, "MOVING AGENTS");
+        //print_moving_agents(result_moving, m_count, "MOVING AGENTS");
 
     }
 

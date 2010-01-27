@@ -2,9 +2,21 @@ bin/darwin/release/oclAgents Starting...
 
 Device 0:
  Device GeForce 9400M
+ alloced 192 bytes host memory for 12 fixed agents
+ alloced 1600 bytes host memory for 100 moving agents
+ alloced 24 bytes host memory for the container
+Element 0: pos x-0.000000 y1.000000; direction x-1.000000 y-0.000000
+Element 1: pos x-0.500000 y0.866025; direction x-0.866025 y-0.500000
+Element 2: pos x-0.866025 y0.500000; direction x-0.500000 y-0.866025
+Element 3: pos x-1.000000 y-0.000000; direction x0.000000 y-1.000000
+Element 4: pos x-0.866025 y-0.500000; direction x0.500000 y-0.866025
+Element 5: pos x-0.500000 y-0.866025; direction x0.866025 y-0.500000
+Element 6: pos x0.000000 y-1.000000; direction x1.000000 y0.000000
+Element 7: pos x0.500000 y-0.866025; direction x0.866025 y0.500000
+Element 8: pos x0.866025 y-0.500000; direction x0.500000 y0.866025
+Element 9: pos x1.000000 y0.000000; direction x-0.000000 y1.000000
+Element 10: pos x0.866025 y0.500000; direction x-0.500000 y0.866025
+Element 11: pos x0.500000 y0.866026; direction x-0.866026 y0.500000
 Error: Failed to load the header (null)!
 TEST FAILED !!!
 
-
-Press <Enter> to Quit...
------------------------------------------------------------
