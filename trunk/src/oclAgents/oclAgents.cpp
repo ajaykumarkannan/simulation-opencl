@@ -137,7 +137,7 @@ void print_ppm(agent_container_t * container, unsigned int run_nr)  // do on gpu
         int x = container->f_agent_array[i].pos_x;
         int y = container->f_agent_array[i].pos_y;
         
-        if ((x+50) >= 0 && (x+50) < DIM_X && (y+50) >= 0 && (y+50) < DIM_Y) // check for safety
+        if ((x+DIM_X/2) >= 0 && (x+DIM_X/2) < DIM_X && (y+DIM_Y/2) >= 0 && (y+DIM_Y/2) < DIM_Y) // check for safety
         {
 
             if(container->f_agent_array[i].stat == STAT_OCCUPIED1)
@@ -165,7 +165,7 @@ void print_ppm(agent_container_t * container, unsigned int run_nr)  // do on gpu
         int x = container->m_agent_array[i].pos_x;
         int y = container->m_agent_array[i].pos_y;
         
-        if ((x+50) >= 0 && (x+50) < DIM_X && (y+50) >= 0 && (y+50) < DIM_Y) // check for safety
+        if ((x+DIM_X/2) >= 0 && (x+DIM_X/2) < DIM_X && (y+DIM_Y/2) >= 0 && (y+DIM_Y/2) < DIM_Y) // check for safety
         {
             if(container->m_agent_array[i].stat == STAT_OCCUPIED1)
             {

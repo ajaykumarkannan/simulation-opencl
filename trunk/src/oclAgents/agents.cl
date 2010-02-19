@@ -22,6 +22,8 @@ agents( __global agent_vector_t * fixed_agents, __global agent_vector_t * moving
     for(m=0; m < *m_count; m++)
     {
         unsigned int in_radius_count = 0;
+        int new_dir_x = 0;
+        int new_dir_y = 0;
         //agent_vector_t * in_radius[*f_count];
         agent_vector_t in_radius[AGENTS_FIXED_COUNT]; // improve performance with pointer traversal
 
@@ -32,6 +34,7 @@ agents( __global agent_vector_t * fixed_agents, __global agent_vector_t * moving
             float dist_y = fixed_agents[f].pos_y - moving_agents[m].pos_y;
 
             //if(hypot(dist_x,dist_y) <= LOOKAHEAD_RADIUS) // check if in radius
+            
             if((dist_x*dist_x)+(dist_y*dist_y) <= r2)
             { 
                 in_radius[in_radius_count] = fixed_agents[f];
@@ -42,14 +45,19 @@ agents( __global agent_vector_t * fixed_agents, __global agent_vector_t * moving
         // now we know all fixed agents in range, calculate new dir now
         for(i=0; i < in_radius_count; i++)
         {
-            moving_agents[m].mov_x += in_radius[i].mov_x;
-            moving_agents[m].mov_y += in_radius[i].mov_y;
+            new_dir_x += in_radius[i].mov_x * INFLUENCE_FACTOR;
+            new_dir_y += in_radius[i].mov_y * INFLUENCE_FACTOR;
+            
+            //moving_agents[m].mov_x += in_radius[i].mov_x;
+            //moving_agents[m].mov_y += in_radius[i].mov_y;
         }
         
         if(in_radius_count) // only if there are some in radius
         {
-            moving_agents[m].mov_x = moving_agents[m].mov_x / (in_radius_count + 1);
-            moving_agents[m].mov_y = moving_agents[m].mov_y / (in_radius_count + 1);
+            moving_agents[m].mov_x += new_dir_x;
+            moving_agents[m].mov_y += new_dir_y;
+            moving_agents[m].mov_x = moving_agents[m].mov_x / (in_radius_count * INFLUENCE_FACTOR + 1);
+            moving_agents[m].mov_y = moving_agents[m].mov_y / (in_radius_count * INFLUENCE_FACTOR + 1);
             moving_agents[m].stat  = STAT_OCCUPIED1;
         }
         else

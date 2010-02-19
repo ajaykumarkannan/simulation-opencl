@@ -20,21 +20,24 @@
 #define BLOCK_SIZE 16
 
 // Dimensions of the Field
-#define DIM_X 100
-#define DIM_Y 100
+#define DIM_X 800
+#define DIM_Y 800
 #define INIT_MOVE_FACTOR_FIXED 0.1
 #define INIT_MOVE_FACTOR_MOVING 0.05
 
 // how many runs
-#define RUNS_MAX 1000
+#define RUNS_MAX 400
 
 // How many Agents?
 #define AGENTS_FIXED_COUNT 12       /* i think it should be a multiple of the available GPUs*/
-#define AGENTS_MOVING_COUNT 10
+#define AGENTS_MOVING_COUNT 800
 
 // looking distance of moving agents
-#define LOOKAHEAD_RADIUS 20
-#define INFLUENCE_FACTOR 0.01
+#define LOOKAHEAD_RADIUS 150
+#define INFLUENCE_FACTOR 1
+
+// radius of the initial circle
+#define CIRCLE_RADIUS 100
 
 // print stuff
 // NOTE: do not use 0 as RGB value!
@@ -57,9 +60,6 @@
 // how many entries per Agent
 //#define AGENT_ELEMENT_COUNT 4 /* pos_x, pos_y, mov_x, mov_y - should be done by sizeof()/sizeof(float or so)*/
 #define AGENT_ELEMENT_COUNT ((sizeof(agent_vector_t)/sizeof(float))) /* like this? */
-
-// radius of the initial circle
-#define CIRCLE_RADIUS 20
 
 // typedefs
 #define STAT_FREE 0
