@@ -1,0 +1,101 @@
+\documentclass[a4paper,oneside,12pt,liststotoc,bibtotoc]{scrbook}
+
+
+\usepackage[latin1]{inputenc}
+\usepackage{ngerman}
+\usepackage{scrpage2}
+\usepackage{pdfpages}
+
+\usepackage{bakk}
+
+\usepackage{color}
+\usepackage{courier}
+\usepackage{graphicx}           % Grafiken
+\usepackage{listings} 
+          % Listings
+\usepackage{bibgerm,cite}       % Deutsche Bezeichnungen, Automatisches Zusammenfassen von Literaturstellen
+\usepackage[ngerman]{varioref}  % Querverweise
+\usepackage{verbatim}           % Code-Umgebung
+\usepackage{xspace}             % Richtige Leerzeichen f\"{u}r Makros
+
+\usepackage{appendix}
+
+
+\tolerance=4000
+\emergencystretch=30pt
+
+%% Numeriere 3 Ebenen tief (bis subsection)
+\setcounter{secnumdepth}{3}
+%% nimm 3 Ebenen in das Inhaltsverzeichni%s auf.
+\setcounter{tocdepth}{4}
+
+
+
+\begin{document}
+
+% Gloabe Einstellungen f\"{u}r Listings
+\lstset{
+  basicstyle=\ttfamily\tiny,
+  frame=single,
+  xleftmargin=10pt,
+  xrightmargin=10pt,
+%  numbers=left,
+%  breaklines=true,
+  tabsize=2
+%  showspaces=false
+}
+
+%************************************************************************
+% Titelseite
+%************************************************************************
+
+\newcommand{\advisor}{BREITENECKER Felix, SCHNECKENREITHER Günter}
+\newcommand{\kindOfWork}{""}
+\newcommand{\lva}{Simulation}
+\author{BRODER Jürgen, 0425784\\
+ECKER Valentin, 0426030
+}
+
+\date{\today}
+\title{Simulationsprotokoll Parallelagenten}
+\maketitle
+\pagenumbering{roman}
+\parindent0pt %Einrücken für das gesamte Dokument verhindern
+
+
+
+\newpage
+
+\pagenumbering{arabic}
+
+\pagestyle{scrheadings}
+
+% Kopf- und Fu{\ss}zeilen definieren
+\automark[chapter]{chapter}
+\ihead[]{\headmark} % innen (links) Kapitel
+\chead[]{}
+\ohead[\pagemark]{\pagemark} % au{\ss}en (rechts) Seitenzahl
+\setheadsepline{0.4pt}
+\cfoot[]{} % keine Fu{\ss}zeile
+
+%{\Large \sf \bfseries \"{U}bersicht} \vspace{1cm}
+
+
+
+%************************************************************************
+%INHALTSVERZEICHNIS
+
+%************************************************************************
+
+
+
+\includepdfset{pages=-,noautoscale}
+\includepdf{parallelagenten.pdf}
+
+\tableofcontents
+
+\input{./chapter1/chapter1}
+\input{./chapter2/chapter2}
+\input{./chapter3/chapter3}
+
+\end{document}
