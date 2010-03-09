@@ -1,0 +1,67 @@
+% ---------------------------------------------------------------
+%
+% big-cover.sty, v 1.0, 10.11.2004
+%
+% by Peter Gerstbach (peter@gerstbach.at)
+%
+% ---------------------------------------------------------------
+%
+% use as
+%       \documentclass[a4paper,oneside,12pt,liststotoc,bibtotoc]{scrreprt}
+%       \usepackage[latin1]{inputenc}
+%       \usepackage{ngerman}
+%       \usepackage{scrpage2}
+%       \usepackage{big-cover}
+%
+% ---------------------------------------------------------------
+
+\usepackage{picins} % Floating figures
+
+% Seitenr\"{a}nder, beachte Standardrand 1in~25mm
+\setlength{\topmargin}{-10mm} % Rand oben: 15mm - 25mm = -10mm
+\setlength{\headheight}{1.1\baselineskip} % etwas gr\"{o}{\ss}er wegen 12pt-Schrift
+\setlength{\headsep}{10mm}
+\setlength{\oddsidemargin}{10mm} % Rand link: 40mm - 25mm = 15mm
+\setlength{\textwidth}{145mm} % Textbreite: 210mm (A4) - 40mm (links) - 25mm (rechts) = 145mm
+\setlength{\textheight}{242mm} % Textbreite: 297mm (A4) - 30mm (oben) - 25mm (unten) = 242mm
+\setlength{\footskip}{15mm} %
+
+%\renewcommand{\baselinestretch}{1.50}\normalsize % ev. 1,5-facher Zeilenabstand
+
+% Title page
+
+\def\maketitle
+{
+  \thispagestyle{empty} % keine Kopf/Fu{\ss}zeilen selbst definieren
+
+  {\sffamily
+
+  \parpic[l]{\includegraphics[width=30mm]{images/tu-dt-voll-blau-pos.png}}
+  \begin{flushright}
+    {\Large \bfseries TU Wien\\}
+    \vspace{5mm}
+  \end{flushright}
+  %\parpic[l]{\includegraphics[width=20mm]{images/biglogo2.png}}
+  \begin{flushright}
+    {\bfseries Mathematische Modellbildung und Simulation\\}
+    Institut f\"{u}r Analysis und Scientific Computing\\
+    \vspace{10mm}
+  \end{flushright}
+  \hrule
+  \begin{flushright}
+    \vspace{20mm}
+    \@author\\
+    \vspace{15mm}
+    {\Large \bfseries \@title}\\
+    \vspace{15mm}
+    {\bfseries \kindOfWork}\\
+    \vspace{10mm}
+     Im Rahmen der LVA \\
+     \lva\\
+    \vspace{30mm}
+    \advisor \\
+    \vspace{50mm}
+    Wien, \@date
+  \end{flushright}
+  }
+}

@@ -1,18 +1,13 @@
 /*
- * Copyright 1993-2009 NVIDIA Corporation.  All rights reserved.
+ * Agent based Simulation
+ * shared Header File
  *
- * NVIDIA Corporation and its licensors retain all intellectual property and 
- * proprietary rights in and to this software and related documentation. 
- * Any use, reproduction, disclosure, or distribution of this software 
- * and related documentation without an express license agreement from
- * NVIDIA Corporation is strictly prohibited.
  *
- * Please refer to the applicable NVIDIA end user license agreement (EULA) 
- * associated with this source code for terms and conditions that govern 
- * your use of this NVIDIA software.
- * 
+ * 08 - Nov - 2009  VEC     init, not functional yet
+ * 08 - Mar - 2010  VEC     fully functional, and tested
  */
-
+ 
+ 
 #ifndef _AGENTS_H_
 #define _AGENTS_H_
 
@@ -26,18 +21,18 @@
 #define INIT_MOVE_FACTOR_MOVING 0.05
 
 // how many runs
-#define RUNS_MAX 400
+#define RUNS_MAX 1000
 
 // How many Agents?
-#define AGENTS_FIXED_COUNT 12       /* i think it should be a multiple of the available GPUs*/
-#define AGENTS_MOVING_COUNT 800
+#define AGENTS_FIXED_COUNT 12
+#define AGENTS_MOVING_COUNT 100000       /* i think it should be a multiple of the available GPUs*/
 
 // looking distance of moving agents
-#define LOOKAHEAD_RADIUS 150
-#define INFLUENCE_FACTOR 1
+#define LOOKAHEAD_RADIUS 100
+#define INFLUENCE_FACTOR 0.5
 
-// radius of the initial circle
-#define CIRCLE_RADIUS 100
+// radius of the initial circle; at least DIM_X/2
+#define CIRCLE_RADIUS DIM_X/6
 
 // print stuff
 // NOTE: do not use 0 as RGB value!
@@ -59,7 +54,7 @@
 
 // how many entries per Agent
 //#define AGENT_ELEMENT_COUNT 4 /* pos_x, pos_y, mov_x, mov_y - should be done by sizeof()/sizeof(float or so)*/
-#define AGENT_ELEMENT_COUNT ((sizeof(agent_vector_t)/sizeof(float))) /* like this? */
+//#define AGENT_ELEMENT_COUNT ((sizeof(agent_vector_t)/sizeof(float))) /* like this? */
 
 // typedefs
 #define STAT_FREE 0
